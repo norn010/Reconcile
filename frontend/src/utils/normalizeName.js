@@ -14,20 +14,36 @@ const COMPANY_PREFIXES = [
   'หจก.', 'หจก', 'ห้างหุ้นส่วน',
 ];
 
-const REF_CODE_PATTERN = /[A-Z]{3}-?\d{5,}/gi;
+const REF_CODE_PATTERN = /[ก-ฮa-zA-Z]{1,4}-?\d{5,}/gi;
 const BTR_CODE_PATTERN = /(?:B[O0]?\d[A-Z0-9]{1,2}|\dTR)-?\d{6,}/gi;
 const DOC_REF_PATTERN = /\d{3}[A-Z]{2}\d{7,}/gi;
 const BRACKET_CODE_PATTERN = /\[.*?\]/g;
 const TRAILING_DATE_PATTERN = /\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/;
 
 const ACTION_KEYWORDS = [
+  'บันทึกการขายเชื่อรถยนต์',
+  'บันทึกขายเชื่อรถยนต์',
+  'การขายเชื่อรถยนต์',
+  'ขายเชื่อรถยนต์',
+  'ขายเชื่อ',
+  'เชื่อรถยนต์',
+  'บันทึกการขายรถ',
+  'บันทึกการขาย',
+  'บันทึกขาย',
+  'ขายรถยนต์',
+  'ขายรถ',
   'บันทึกปรับปรุงส่วนลด',
   'ปรับปรุงส่วนลด',
+  'บันทึกรับชำระหนี้จาก',
   'บันทึกรับชำระหนี้',
+  'บันทึกรับชำระจาก',
   'บันทึกรับชำระ',
+  'รับชำระหนี้จาก',
   'รับชำระหนี้',
+  'รับชำระจาก',
   'รับชำระค่า',
   'รับชำระ',
+  'ชำระหนี้จาก',
   'ชำระหนี้ให้',
   'รับเงินดาวน์',
   'รับเงินจาก',
@@ -142,7 +158,7 @@ export function normalizeName(name) {
 
   // Strip any remaining ref codes (3TR, 5TR, 6TR, B02FT, etc.)
   normalized = normalized.replace(/(?:b[o0]?\d[a-z0-9]{1,2}|\dtr)-?\d{6,}/gi, '');
-  normalized = normalized.replace(/[a-z]{3}-?\d{5,}/gi, '');
+  normalized = normalized.replace(REF_CODE_PATTERN, '');
   normalized = normalized.replace(/\d{3}[a-z]{2}\d{7,}/gi, '');
 
   for (const suffix of COMPANY_SUFFIXES) {

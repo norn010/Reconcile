@@ -1,4 +1,4 @@
-import { extractCustomerName, normalizeName, shouldSkipDescription } from './normalizeName';
+import { extractCustomerName, normalizeName, shouldSkipDescription } from './normalizeName.js';
 import stringSimilarity from 'string-similarity';
 
 export function reconcileTransactions(transactions, options = {}) {
