@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { parseExcelFile } from '../utils/parseExcel';
+import { parseExcelFile, parseCarryForwardFile } from '../utils/parseExcel';
 import { reconcileTransactions, mergeCustomerGroups } from '../utils/reconcileEngine';
 
 const CARRY_FORWARD_KEY = 'reconcile_carry_forward';
@@ -122,6 +122,13 @@ const useReconcileStore = create((set, get) => ({
       })),
     };
 
+    saveCarryForward(cfData);
+    set({ carryForward: cfData });
+    return cfData;
+  },
+
+  setCarryForwardFile: async (file) => {
+    const cfData = await parseCarryForwardFile(file);
     saveCarryForward(cfData);
     set({ carryForward: cfData });
     return cfData;

@@ -1,4 +1,4 @@
-import { CheckCircle, XCircle, AlertTriangle, Users, FileText, ArrowDownUp } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Users, FileText, ArrowDownUp, ArchiveRestore } from 'lucide-react';
 import useReconcileStore from '../store/useReconcileStore';
 
 function StatCard({ icon: Icon, label, value, color, subtext }) {
@@ -8,6 +8,7 @@ function StatCard({ icon: Icon, label, value, color, subtext }) {
     red: 'bg-danger-50 text-danger-600',
     amber: 'bg-warning-50 text-warning-600',
     gray: 'bg-gray-50 text-gray-600',
+    teal: 'bg-teal-50 text-teal-600',
   };
 
   return (
@@ -78,6 +79,20 @@ export default function Dashboard() {
           color={summary.totalDifference === 0 ? 'green' : 'red'}
         />
       </div>
+
+      {summary.cfResolved > 0 && (
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-center gap-3">
+          <ArchiveRestore className="w-5 h-5 text-teal-600 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-teal-800">
+              ยอดยกมาที่เคลียร์แล้ว {summary.cfResolved.toLocaleString()} ราย
+            </p>
+            <p className="text-xs text-teal-600">
+              ยอดรวม {Math.abs(summary.cfResolvedTotal).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท — รายการจากยอดยกมาที่ไม่มีรายการในไฟล์ปัจจุบัน (ถือว่าเคลียร์แล้ว)
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-5">

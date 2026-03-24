@@ -5,7 +5,21 @@ function reconcile(transactions, options = {}) {
 
   const customerGroups = groupByCustomer(transactions, strictMode);
 
-  const results = customerGroups.map(group => {
+  const activeGroups = [];
+  const cfResolvedGroups = [];
+
+  for (const group of customerGroups) {
+    const hasMainTx = group.transactions.some(tx => !tx.isCarryForward);
+    const hasCFTx = group.transactions.some(tx => tx.isCarryForward);
+
+    if (hasCFTx && !hasMainTx) {
+      cfResolvedGroups.push(group);
+      continue;
+    }
+    activeGroups.push(group);
+  }
+
+  const results = activeGroups.map(group => {
     const totalDebit = group.transactions
       .reduce((sum, tx) => sum + (tx.debit || 0), 0);
     const totalCredit = group.transactions
@@ -54,15 +68,21 @@ function reconcile(transactions, options = {}) {
     return b.absDifference - a.absDifference;
   });
 
+  const cfResolvedTotal = cfResolvedGroups.reduce((s, g) => {
+    return s + g.transactions.reduce((ss, tx) => ss + (tx.credit || 0) - (tx.debit || 0), 0);
+  }, 0);
+
   const summary = {
     totalCustomers: results.length,
-    totalTransactions: transactions.length,
+    totalTransactions: transactions.filter(tx => !tx.isCarryForward).length,
     matched: results.filter(r => r.status === 'matched').length,
     missingCredit: results.filter(r => r.status === 'missing_credit').length,
     missingDebit: results.filter(r => r.status === 'missing_debit').length,
     totalDebit: Math.round(results.reduce((s, r) => s + r.totalDebit, 0) * 100) / 100,
     totalCredit: Math.round(results.reduce((s, r) => s + r.totalCredit, 0) * 100) / 100,
     totalDifference: Math.round(results.reduce((s, r) => s + r.difference, 0) * 100) / 100,
+    cfResolved: cfResolvedGroups.length,
+    cfResolvedTotal: Math.round(cfResolvedTotal * 100) / 100,
   };
 
   return { summary, results };

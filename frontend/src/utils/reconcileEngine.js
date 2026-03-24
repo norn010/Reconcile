@@ -6,7 +6,21 @@ export function reconcileTransactions(transactions, options = {}) {
 
   const customerGroups = groupByCustomer(transactions, strictMode);
 
-  const results = customerGroups.map(group => {
+  const activeGroups = [];
+  const cfResolvedGroups = [];
+
+  for (const group of customerGroups) {
+    const hasMainTx = group.transactions.some(tx => !tx.isCarryForward);
+    const hasCFTx = group.transactions.some(tx => tx.isCarryForward);
+
+    if (hasCFTx && !hasMainTx) {
+      cfResolvedGroups.push(group);
+      continue;
+    }
+    activeGroups.push(group);
+  }
+
+  const results = activeGroups.map(group => {
     const totalDebit = group.transactions
       .reduce((sum, tx) => sum + (tx.debit || 0), 0);
     const totalCredit = group.transactions
@@ -52,15 +66,21 @@ export function reconcileTransactions(transactions, options = {}) {
     return b.absDifference - a.absDifference;
   });
 
+  const cfResolvedTotal = cfResolvedGroups.reduce((s, g) => {
+    return s + g.transactions.reduce((ss, tx) => ss + (tx.credit || 0) - (tx.debit || 0), 0);
+  }, 0);
+
   const summary = {
     totalCustomers: results.length,
-    totalTransactions: transactions.length,
+    totalTransactions: transactions.filter(tx => !tx.isCarryForward).length,
     matched: results.filter(r => r.status === 'matched').length,
     missingCredit: results.filter(r => r.status === 'missing_credit').length,
     missingDebit: results.filter(r => r.status === 'missing_debit').length,
     totalDebit: Math.round(results.reduce((s, r) => s + r.totalDebit, 0) * 100) / 100,
     totalCredit: Math.round(results.reduce((s, r) => s + r.totalCredit, 0) * 100) / 100,
     totalDifference: Math.round(results.reduce((s, r) => s + r.difference, 0) * 100) / 100,
+    cfResolved: cfResolvedGroups.length,
+    cfResolvedTotal: Math.round(cfResolvedTotal * 100) / 100,
   };
 
   return { summary, results };
@@ -114,7 +134,21 @@ function groupByCustomer(transactions, strictMode) {
       const longer = key.length <= otherKey.length ? otherKey : key;
       const isSubstring = shorter.length >= 6 && longer.startsWith(shorter);
 
-      if (similarity >= 0.75 || isSubstring) {
+      let shouldMerge = similarity >= 0.75 || isSubstring;
+
+      if (!shouldMerge && similarity >= 0.65) {
+        const rawA = group.raw.replace(/\s+/g, ' ').trim().toLowerCase();
+        const rawB = normalizedMap.get(otherKey).raw.replace(/\s+/g, ' ').trim().toLowerCase();
+        const wordsA = rawA.split(/\s+/).filter(w => w.length >= 2);
+        const wordsB = rawB.split(/\s+/).filter(w => w.length >= 2);
+        if (wordsA.length >= 2 && wordsB.length >= 2) {
+          const shared = wordsA.filter(w => wordsB.some(w2 => w === w2 || stringSimilarity.compareTwoStrings(w, w2) >= 0.85));
+          const ratio = shared.length / Math.min(wordsA.length, wordsB.length);
+          if (ratio >= 0.6) shouldMerge = true;
+        }
+      }
+
+      if (shouldMerge) {
         const otherGroup = normalizedMap.get(otherKey);
         mergedGroup.transactions.push(...otherGroup.transactions);
         mergedGroup.aliases.push(otherKey);

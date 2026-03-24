@@ -39,11 +39,10 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <CarryForward />
-
         {transactions.length === 0 && (
-          <div className="max-w-2xl mx-auto pt-12">
-            <div className="text-center mb-8">
+          <div className="max-w-2xl mx-auto pt-8 space-y-6">
+            <CarryForward />
+            <div className="text-center mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Upload your Excel file</h2>
               <p className="text-gray-500 mt-2">
                 Upload a general ledger Excel file to automatically reconcile
@@ -56,6 +55,7 @@ export default function App() {
 
         {transactions.length > 0 && (
           <>
+            <CarryForward />
             <FileUpload />
             <DataPreview />
             <ActionBar />

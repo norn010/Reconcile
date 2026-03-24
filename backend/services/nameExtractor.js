@@ -15,11 +15,13 @@ const COMPANY_PREFIXES = [
 ];
 
 // All reference code patterns seen in the data
-const REF_CODE_PATTERN = /(?:ITR|ITB|ITC|IHF|IHR|IRR|MTR)-?\d{5,}/gi;
+const REF_CODE_PATTERN = /[A-Z]{3}-?\d{5,}/gi;
 
-// B-series codes: B02TR-2411150003, B03R2501300001, B01TR-25011180002, B03FT-xxx
-// Covers B + digit(s) + letters + optional dash + digits
-const BTR_CODE_PATTERN = /B[O0]?\d[A-Z]{1,2}-?\d{6,}/gi;
+// B-series codes: B02TR-xxx, B03R2xxx, B01F1-xxx, B03FT-xxx
+const BTR_CODE_PATTERN = /(?:B[O0]?\d[A-Z0-9]{1,2}|\dTR)-?\d{6,}/gi;
+
+// Document reference codes: 011RE25010006, 011CN25060044
+const DOC_REF_PATTERN = /\d{3}[A-Z]{2}\d{7,}/gi;
 
 // Patterns in square brackets like [IHF-25030017]
 const BRACKET_CODE_PATTERN = /\[.*?\]/g;
@@ -29,14 +31,19 @@ const TRAILING_DATE_PATTERN = /\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/;
 
 // Action keywords - ordered longest first so longer matches are removed before shorter substrings
 const ACTION_KEYWORDS = [
+  'บันทึกปรับปรุงส่วนลด',
+  'ปรับปรุงส่วนลด',
   'บันทึกรับชำระหนี้',
   'บันทึกรับชำระ',
   'รับชำระหนี้',
   'รับชำระค่า',
   'รับชำระ',
+  'ชำระหนี้ให้',
+  'รับเงินดาวน์',
   'รับเงินจาก',
   'เงินจองรถยนต์',
   'เงินจอง',
+  'รับจอง',
   'โอนเงินจาก',
   'โอนเงิน',
   'ชำระเงิน',
@@ -88,9 +95,19 @@ const TITLE_PREFIXES = [
 const SKIP_PATTERNS = [
   /^รายวันรับฝ่ายขาย/,
   /^เงินจองรถยนต์$/,
+  /^เงินรับมัดจำ/,
+  /^เงินดาวน์รถยนต์$/,
   /ยกมา/,
   /ยอดยกไป/,
   /^รวม/,
+  /ปรับปรุงส่วนลด/,
+  /^บันทึกปรับปรุง/,
+  // Generic batch/account entries — not customer names
+  /^เงินค่าอุปกรณ์/,
+  /^เงินค่า\S*รถยนต์/,
+  /^เงินค่า\S*-รับ/,
+  /^ค่าประกันภัย/,
+  /^ขายโปรแกรม/,
 ];
 
 function shouldSkipDescription(description) {
@@ -111,6 +128,9 @@ function extractCustomerName(description) {
   // Remove B-series codes anywhere in the string
   text = text.replace(BTR_CODE_PATTERN, '').trim();
 
+  // Remove document reference codes (011RE25010006)
+  text = text.replace(DOC_REF_PATTERN, '').trim();
+
   // Remove trailing dates like "5/2/68"
   text = text.replace(TRAILING_DATE_PATTERN, '').trim();
 
@@ -122,11 +142,21 @@ function extractCustomerName(description) {
   // Remove vehicle brand/model markers
   text = text.replace(/\s*-\s*AION\s*/gi, ' ');
 
-  // Split by slash — take the first part (name), discard codes/ถอนจอง
+  // Split by slash — take the name part, discard codes/ถอนจอง
   if (text.includes('/')) {
     const parts = text.split('/');
-    const namePart = parts.find(p => p.trim() && !BTR_CODE_PATTERN.test(p.trim()) && !/^\s*ถอนจอง\s*$/.test(p.trim()));
-    BTR_CODE_PATTERN.lastIndex = 0;
+    const namePart = parts.find(p => {
+      const t = p.trim();
+      if (!t) return false;
+      if (/^\s*ถอนจอง\s*$/.test(t)) return false;
+      BTR_CODE_PATTERN.lastIndex = 0;
+      if (BTR_CODE_PATTERN.test(t)) { BTR_CODE_PATTERN.lastIndex = 0; return false; }
+      DOC_REF_PATTERN.lastIndex = 0;
+      if (DOC_REF_PATTERN.test(t)) return false;
+      // Reject pure digit/hyphen strings like "25040013"
+      if (/^[\d\-]+$/.test(t)) return false;
+      return true;
+    });
     if (namePart) {
       text = namePart;
     }
@@ -157,9 +187,10 @@ function normalizeName(name) {
 
   let normalized = name.trim().toLowerCase();
 
-  // Strip any remaining B-codes or ref codes that slipped through
-  normalized = normalized.replace(/b[o0]?\d[a-z]{1,2}-?\d{6,}/gi, '');
-  normalized = normalized.replace(/(?:itr|itb|itc|ihf|ihr|irr|mtr)-?\d{5,}/gi, '');
+  // Strip any remaining ref codes (3TR, 5TR, 6TR, B02FT, etc.)
+  normalized = normalized.replace(/(?:b[o0]?\d[a-z0-9]{1,2}|\dtr)-?\d{6,}/gi, '');
+  normalized = normalized.replace(/[a-z]{3}-?\d{5,}/gi, '');
+  normalized = normalized.replace(/\d{3}[a-z]{2}\d{7,}/gi, '');
 
   // Remove company suffixes
   for (const suffix of COMPANY_SUFFIXES) {
@@ -262,14 +293,25 @@ function groupByCustomer(transactions, strictMode = false) {
 
       const similarity = stringSimilarity.compareTwoStrings(key, otherKey);
 
-      // Substring containment: one name is the beginning of another
-      // (e.g. "ศุกัญญ์ฑวุฒิ" vs "ศุกัญญ์ฑวุฒิมนูญธรรมพร")
       const shorter = key.length <= otherKey.length ? key : otherKey;
       const longer = key.length <= otherKey.length ? otherKey : key;
       const isSubstring = shorter.length >= 6 && longer.startsWith(shorter);
 
-      // Thai names with single-char typos (e.g. ฎ vs ฏ, ชา vs ซา) score ~0.75+
-      if (similarity >= 0.75 || isSubstring) {
+      let shouldMerge = similarity >= 0.75 || isSubstring;
+
+      if (!shouldMerge && similarity >= 0.65) {
+        const rawA = group.raw.replace(/\s+/g, ' ').trim().toLowerCase();
+        const rawB = normalizedMap.get(otherKey).raw.replace(/\s+/g, ' ').trim().toLowerCase();
+        const wordsA = rawA.split(/\s+/).filter(w => w.length >= 2);
+        const wordsB = rawB.split(/\s+/).filter(w => w.length >= 2);
+        if (wordsA.length >= 2 && wordsB.length >= 2) {
+          const shared = wordsA.filter(w => wordsB.some(w2 => w === w2 || stringSimilarity.compareTwoStrings(w, w2) >= 0.85));
+          const ratio = shared.length / Math.min(wordsA.length, wordsB.length);
+          if (ratio >= 0.6) shouldMerge = true;
+        }
+      }
+
+      if (shouldMerge) {
         const otherGroup = normalizedMap.get(otherKey);
         mergedGroup.transactions.push(...otherGroup.transactions);
         mergedGroup.aliases.push(otherKey);
