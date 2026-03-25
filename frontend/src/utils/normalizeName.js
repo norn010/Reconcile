@@ -17,6 +17,7 @@ const COMPANY_PREFIXES = [
 const REF_CODE_PATTERN = /[ก-ฮa-zA-Z]{1,4}-?\d{5,}/gi;
 const BTR_CODE_PATTERN = /(?:B[O0]?\d[A-Z0-9]{1,2}|\dTR)-?\d{6,}/gi;
 const DOC_REF_PATTERN = /\d{3}[A-Z]{2}\d{7,}/gi;
+const ACCOUNT_CODE_PATTERN = /\b(?:[A-Za-z]{1,2}[O0]?\d{1,3}(?:TR|FT|PJ|OJ)?|[ก-ฮ]{1,2}TR)\b/gi;
 const BRACKET_CODE_PATTERN = /\[.*?\]/g;
 const TRAILING_DATE_PATTERN = /\s+\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/;
 
@@ -105,9 +106,12 @@ export function extractCustomerName(description) {
   let text = description.trim();
 
   text = text.replace(BRACKET_CODE_PATTERN, '').trim();
-  text = text.replace(REF_CODE_PATTERN, '').trim();
+  
+  // Specific patterns first to avoid partial matching by generic REF_CODE_PATTERN
   text = text.replace(BTR_CODE_PATTERN, '').trim();
   text = text.replace(DOC_REF_PATTERN, '').trim();
+  text = text.replace(REF_CODE_PATTERN, '').trim();
+  
   text = text.replace(TRAILING_DATE_PATTERN, '').trim();
 
   for (const keyword of ACTION_KEYWORDS) {
@@ -119,22 +123,38 @@ export function extractCustomerName(description) {
   // Split by slash — take the name part, discard codes/ถอนจอง
   if (text.includes('/')) {
     const parts = text.split('/');
-    const namePart = parts.find(p => {
-      const t = p.trim();
-      if (!t) return false;
-      if (/^\s*ถอนจอง\s*$/.test(t)) return false;
-      BTR_CODE_PATTERN.lastIndex = 0;
-      if (BTR_CODE_PATTERN.test(t)) { return false; }
-      DOC_REF_PATTERN.lastIndex = 0;
-      if (DOC_REF_PATTERN.test(t)) return false;
-      // Reject pure digit/hyphen strings like "25040013"
-      if (/^[\d\-]+$/.test(t)) return false;
-      return true;
-    });
-    if (namePart) {
-      text = namePart;
+    
+    // First, try to find a part that has Thai characters (most likely the name)
+    const thaiPart = parts.find(p => /[ก-ฮ]/.test(p) && !p.includes('ถอนจอง'));
+    if (thaiPart) {
+      text = thaiPart.trim();
+    } else {
+      // Fallback: find first part that isn't empty and isn't a code
+      const namePart = parts.find(p => {
+        const t = p.trim();
+        if (!t || t.length < 2) return false;
+        if (/^\s*ถอนจอง\s*$/.test(t)) return false;
+        
+        ACCOUNT_CODE_PATTERN.lastIndex = 0;
+        if (ACCOUNT_CODE_PATTERN.test(t)) return false;
+        
+        BTR_CODE_PATTERN.lastIndex = 0;
+        if (BTR_CODE_PATTERN.test(t)) return false;
+        
+        DOC_REF_PATTERN.lastIndex = 0;
+        if (DOC_REF_PATTERN.test(t)) return false;
+        
+        if (/^[\d\-]+$/.test(t)) return false;
+        return true;
+      });
+      if (namePart) {
+        text = namePart;
+      }
     }
   }
+
+  // Final cleanup of any standalone account codes left behind
+  text = text.replace(ACCOUNT_CODE_PATTERN, '').trim();
 
   text = text.replace(/[/\\|;]/g, ' ').trim();
 
