@@ -5,7 +5,7 @@
 ## Features
 
 - **Upload & Parse** — ลาก/วางไฟล์ Excel เข้าระบบ แสดง Preview ข้อมูลก่อน Reconcile
-- **Smart Name Extraction** — ดึงชื่อลูกค้าจาก description หลายรูปแบบ เช่น `รับชำระหนี้ คุณสมชาย`, `รับเงินจาก บริษัท XYZ`, `นายธนา จอดนอก B01TR-xxx`
+- **Smart Name Extraction** — ดึงชื่อลูกค้าจาก description หลายรูปแบบ เช่น `รับชำระหนี้จาก คุณสมชาย`, `บันทึกการขายเชื่อรถยนต์ จุฬา`, `นายธนา จอดนอก B01TR-xxx`, `กTR-25120306 พิมพ์ชนก`
 - **Fuzzy Matching** — จับคู่ชื่อที่สะกดต่างกันเล็กน้อย, ตัดคำนำหน้า/คำต่อท้ายบริษัทอัตโนมัติ
 - **Reconcile Engine** — จับคู่ Debit vs Credit ตามชื่อลูกค้า แสดงสถานะ Matched / Missing Credit / Missing Debit
 - **Carry Forward** — ยกยอดที่ไม่ Match ไปตรวจสอบกับไฟล์งวดถัดไป
